@@ -1,7 +1,7 @@
 let hydra, hydraCanvas;
 hydraCanvas = document.getElementById("hydraCanvas");
-hydraCanvas.length = window.innerLength;
-hydraCanvas.height = window.innerHeight;
+hydraCanvas.length = 1920;//window.innerLength;
+hydraCanvas.height = 1080;//window.innerHeight;
 console.log(hydraCanvas)
 
 hydra = new Hydra({
@@ -12,9 +12,8 @@ hydra = new Hydra({
   height: hydraCanvas.height,
 });
 
-a.setBins(10);
-
-a.setSmooth(0.95)
+a.setBins(5);
+a.setSmooth(0);
 
 function onMIDISuccess(midiAccess) {
     console.log(midiAccess);
@@ -28,8 +27,6 @@ function onMIDISuccess(midiAccess) {
 /// register WebMIDI
 navigator.requestMIDIAccess()
     .then(onMIDISuccess, onMIDIFailure);
-
-
 
 function onMIDIFailure() {
     console.log('Could not access your MIDI devices.');
@@ -47,7 +44,7 @@ getMIDIMessage = function(midiMessage) {
 	}
 }
 
-effect_sources = Array(15).fill(0);
+effect_sources = Array(20).fill(0);
 effect_sources = effect_sources.map((x) => [])
 
 last_effect_sources = effect_sources;
@@ -69,10 +66,6 @@ function sum(arr) {
 	}, 0)
 }
 
-try {
-	clearInterval(interval);
-} catch (error) {}
-
 function calculate_input(sources, scale=1) {
 	function inner() {
 		total = 0;
@@ -84,7 +77,7 @@ function calculate_input(sources, scale=1) {
 	return inner;
 }
 
-function cadj(f, m, c) {
+function cadj(f, m=1, c=0) {
 	function inner() {
 		return f() * m + c;
 	}
@@ -94,66 +87,75 @@ function cadj(f, m, c) {
 red = [
 	(chain, x) => chain.rotate(x),
 	(chain, x) => chain.pixelate(cadj(x, 512, 32), cadj(x, 512, 32)),
-	(chain, x) => chain.scrollX(cmul(x, 10)),
-	(chain, x) => chain.scrollY(cmul(x, 10)),
-	(chain, x) => chain.kaleid(cmul(x, 10))
+        (chain, x) => chain.scrollX(cadj(x, 10)),
+	(chain, x) => chain.scrollY(cadj(x, 10)),
+	(chain, x) => chain.kaleid(cadj(x, 100))
 ]
 
 green = [
-	(chain, x) => chain.colorama(x),
-	(chain, x) => chain.luma(x),
-	(chain, x) => chain.thresh(x),
-	(chain, x) => chain.hue(x),
-	(chain, x) => chain.saturate(x),
+    (chain, x) => chain.colorama(cadj(x, 5)),
+    (chain, x) => chain.luma(x),
+    (chain, x) => chain.colorama(cadj(x, 5)),
+    (chain, x) => chain.hue(cadj(x, 15)),
+    (chain, x) => chain.colorama(cadj(x, 5)),
 ]
 
 
 blue = [
-	(chain, x) => (chain.modulate(src(o0), x)),
-	(chain, x) => (chain.modulateScale(src(o0), x)),
-	(chain, x) => (chain.modulateKaleid(src(o0), x)),	
-	(chain, x) => (chain.sub(src(o0), x)),
-	(chain, x) => (chain.mult(src(o0), x))	
+    (chain, x) => (chain.modulate(src(o0), x)),
+    (chain, x) => (chain.modulateScale(src(o0), cadj(x, 5))),
+    (chain, x) => (chain.modulate(src(o0), cadj(x, 5))),	
+    (chain, x) => chain.modulate(src(o0), x),
+    (chain, x) => chain.modulate(src(o0), x),
 ]
+
+s1.clear()
+s1.initScreen();
+
+
+black = [
+    (chain, x) => (chain.modulate(src(s1), x)),
+    (chain, x) => (chain.modulateScale(src(s1), cadj(x, 5))),
+    (chain, x) => (chain.modulate(src(s1), cadj(x, 5))),	
+    (chain, x) => chain.modulate(src(s1), x),
+    (chain, x) => chain.modulate(src(s1), x),
+]
+
+
+
+try {
+	clearInterval(interval);
+} catch (error) {}
 
 s0.clear();
 s0.initCam();
 const interval = setInterval(function() {
-	if (JSON.stringify(last_effect_sources) != JSON.stringify(effect_sources)) {
-      console.log("clear")
-      used_buffers = [false, false, false]
-
-      	// s1.clear();
-      	// s2.clear();
-      	// s3.clear();
-		// rebuild signal chain
-		chain = src(s0);
+    if (JSON.stringify(last_effect_sources) != JSON.stringify(effect_sources)) {
+	// rebuild signal chain
+	chain = src(s0);
 		
-		for (let i = 0; i < 5; i++) {
-			if (effect_sources[i].length > 0) {
-				// feedback modulation effect
-				x = calculate_input(effect_sources[i])
-				chain = red[i](chain, x)
-			}
-			if (effect_sources[i + 5].length > 0) {
-				// feedback modulation effect
-				x = calculate_input(effect_sources[i + 5])
-				chain = green[i](chain, x)
-				//chain = chain.pixelate(n, n);
-			}
-			if (effect_sources[i + 10].length > 0) {
-				//b = src(o0);
-				x = calculate_input(effect_sources[i + 10])
-				chain = blue[i](chain, x)
-				// feedback modulation effect
-				//chain = chain.colorama(calculate_input(effect_sources[i + 10]));
-			}
-		}
-		chain.out(o0);
-		
-		
+	for (let i = 0; i < 5; i++) {
+	    if (effect_sources[i].length > 0) {
+		x = calculate_input(effect_sources[i])
+		chain = red[i](chain, x)
+	    }
+	    if (effect_sources[i + 5].length > 0) {
+		x = calculate_input(effect_sources[i + 5])
+		chain = green[i](chain, x)
+	    }
+	    if (effect_sources[i + 10].length > 0) {
+		x = calculate_input(effect_sources[i + 10])
+		chain = blue[i](chain, x)
+	    }
+	    if (effect_sources[i + 15].length > 0) {
+		x = calculate_input(effect_sources[i + 15])
+		chain = black[i](chain, x)
+	    }
 	}
-	last_effect_sources = JSON.parse(JSON.stringify(effect_sources));
+	chain.out(o0);
+    }
+    
+    last_effect_sources = JSON.parse(JSON.stringify(effect_sources));
  }, 250);
  
  render(o0);
